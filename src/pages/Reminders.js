@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Bell, Trash2 } from 'lucide-react';
 import { db } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
+import { requestPermission, scheduleReminder, cancelReminder, beep } from '../lib/notifications';
 import Toast from '../components/Toast';
 
 const DAYS = [
@@ -14,12 +15,21 @@ const DAYS = [
   { label: 'S', value: 7, full: 'Sun' },
 ];
 
+const SOUND_OPTIONS = [
+  { value: 'default', label: '🔔 Ping' },
+  { value: 'alert',   label: '📣 Alert' },
+  { value: 'workout', label: '⚡ Workout' },
+  { value: 'success', label: '✅ Success' },
+];
+
 const EMPTY_FORM = {
   title: '', message: '', reminder_time: '08:00',
   days_of_week: [1, 2, 3, 4, 5, 6, 7],
+  sound: 'alert',
 };
 
 function formatTime(time24) {
+  if (!time24) return { time: '--:--', ampm: '' };
   const [h, m] = time24.split(':').map(Number);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12  = h % 12 || 12;
@@ -58,10 +68,12 @@ export default function Reminders() {
 
   useEffect(() => { fetchReminders(); }, [fetchReminders]);
 
-  async function requestNotification() {
-    if ('Notification' in window) {
-      const perm = await Notification.requestPermission();
-      setNotifPermission(perm);
+  async function handleEnableNotifications() {
+    const perm = await requestPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      beep('success');
+      setToast({ msg: 'Notifications enabled! 🔔', type: 'success' });
     }
   }
 
@@ -77,20 +89,23 @@ export default function Reminders() {
   function handleAdd(e) {
     e.preventDefault();
     setSaving(true);
-    const { error } = db.reminders.insert({
+    const { data, error } = db.reminders.insert({
       user_id:       user.id,
       title:         form.title,
       message:       form.message,
       reminder_time: form.reminder_time,
       days_of_week:  form.days_of_week,
+      sound:         form.sound,
       active:        true,
     });
     setSaving(false);
     if (!error) {
+      scheduleReminder(data);
       setModal(false);
       setForm(EMPTY_FORM);
       fetchReminders();
-      setToast({ msg: 'Reminder set!', type: 'success' });
+      beep('success');
+      setToast({ msg: 'Reminder set! 🔔', type: 'success' });
     } else {
       setToast({ msg: error.message, type: 'error' });
     }
@@ -98,13 +113,26 @@ export default function Reminders() {
 
   function toggleActive(reminder) {
     const { data } = db.reminders.update(reminder.id, { active: !reminder.active });
-    if (data) setReminders(rs => rs.map(r => r.id === reminder.id ? data : r));
+    if (data) {
+      if (data.active) {
+        scheduleReminder(data);
+        beep('default');
+      } else {
+        cancelReminder(reminder.id);
+      }
+      setReminders(rs => rs.map(r => r.id === reminder.id ? data : r));
+    }
   }
 
   function handleDelete(id) {
+    cancelReminder(id);
     db.reminders.delete(id);
     setReminders(rs => rs.filter(r => r.id !== id));
     setToast({ msg: 'Reminder deleted', type: 'default' });
+  }
+
+  function previewSound(sound) {
+    beep(sound);
   }
 
   return (
@@ -121,14 +149,15 @@ export default function Reminders() {
         </button>
       </div>
 
+      {/* Notification permission banner */}
       {notifPermission !== 'granted' && (
-        <div style={{ margin: '0 20px 16px', background: 'var(--yellow-dim)', border: '1px solid rgba(255,214,10,0.25)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Enable notifications</div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            Allow notifications so reminders appear even when the app isn't focused.
+        <div style={{ margin: '0 20px 16px', background: 'var(--warn-dim)', border: '1px solid rgba(255,204,0,0.2)', borderRadius: 'var(--r)', padding: '14px 16px' }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>🔔 Enable sound & notifications</div>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.5 }}>
+            Allow notifications so reminders can reach you with sound and vibration, even when the app isn't focused.
           </div>
-          <button className="btn btn-ghost" style={{ fontSize: 13, padding: '8px 16px' }} onClick={requestNotification}>
-            Enable Notifications
+          <button className="btn btn-primary" style={{ fontSize: 13, padding: '9px 18px' }} onClick={handleEnableNotifications}>
+            Enable Notifications + Sound
           </button>
         </div>
       )}
@@ -140,8 +169,8 @@ export default function Reminders() {
       ) : reminders.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Bell size={28} /></div>
-          <h3>No reminders</h3>
-          <p>Add a reminder to stay on track with logging meals, workouts, or water intake.</p>
+          <h3>No reminders yet</h3>
+          <p>Add a reminder to stay on track — meals, workouts, water, or anything you need.</p>
         </div>
       ) : (
         reminders.map(r => {
@@ -154,7 +183,7 @@ export default function Reminders() {
               </div>
               <div className="reminder-info">
                 <div className="reminder-title">{r.title}</div>
-                <div className="reminder-days">{dayList(r.days_of_week)}</div>
+                <div className="reminder-days">{dayList(r.days_of_week)}{r.sound ? ` · ${SOUND_OPTIONS.find(s => s.value === r.sound)?.label || ''}` : ''}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <label className="toggle">
@@ -170,6 +199,7 @@ export default function Reminders() {
         })
       )}
 
+      {/* Add modal */}
       {modal && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModal(false)}>
           <div className="modal-sheet">
@@ -209,6 +239,22 @@ export default function Reminders() {
               </div>
 
               <div className="input-group">
+                <label className="input-label">Sound</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {SOUND_OPTIONS.map(s => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      className={'chip' + (form.sound === s.value ? ' active' : '')}
+                      onClick={() => { setForm(f => ({ ...f, sound: s.value })); previewSound(s.value); }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="input-group">
                 <label className="input-label">Days</label>
                 <div className="chip-row">
                   {DAYS.map(d => (
@@ -226,7 +272,7 @@ export default function Reminders() {
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" style={{ flex: 2 }} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save Reminder'}
+                  {saving ? 'Saving…' : '🔔 Save Reminder'}
                 </button>
               </div>
             </form>

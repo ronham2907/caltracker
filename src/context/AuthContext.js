@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/db';
+import { scheduleAllReminders } from '../lib/notifications';
 
 const AuthContext = createContext(null);
 
@@ -12,7 +13,11 @@ export function AuthProvider({ children }) {
     const currentUser = db.auth.getUser();
     setUser(currentUser);
     if (currentUser) {
-      setProfile(db.profiles.findOne(p => p.id === currentUser.id));
+      const p = db.profiles.findOne(x => x.id === currentUser.id);
+      setProfile(p);
+      // Schedule any saved reminders
+      const reminders = db.reminders.filter(r => r.user_id === currentUser.id && r.active);
+      scheduleAllReminders(reminders);
     }
     setLoading(false);
   }, []);
@@ -21,7 +26,10 @@ export function AuthProvider({ children }) {
     const { user: u, error } = db.auth.signIn(email, password);
     if (!error) {
       setUser(u);
-      setProfile(db.profiles.findOne(p => p.id === u.id));
+      const p = db.profiles.findOne(x => x.id === u.id);
+      setProfile(p);
+      const reminders = db.reminders.filter(r => r.user_id === u.id && r.active);
+      scheduleAllReminders(reminders);
     }
     return { error };
   }
@@ -30,7 +38,8 @@ export function AuthProvider({ children }) {
     const { user: u, error } = db.auth.signUp(email, password, fullName);
     if (!error) {
       setUser(u);
-      setProfile(db.profiles.findOne(p => p.id === u.id));
+      const p = db.profiles.findOne(x => x.id === u.id);
+      setProfile(p);
     }
     return { error };
   }
@@ -42,13 +51,16 @@ export function AuthProvider({ children }) {
   }
 
   function updateProfile(updates) {
+    if (!user) return { error: { message: 'Not logged in' } };
     const { data, error } = db.profiles.upsertById(user.id, updates);
     if (!error) setProfile(data);
     return { error };
   }
 
+  const onboardingDone = !!profile?.onboarding_done;
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, onboardingDone, signIn, signUp, signOut, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

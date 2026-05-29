@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, UtensilsCrossed, Camera, Dumbbell, User } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, Camera, Trophy, User } from 'lucide-react';
 
 export default function BottomNav() {
   const navigate = useNavigate();
@@ -8,13 +8,13 @@ export default function BottomNav() {
   return (
     <nav className="bottom-nav">
       <NavLink to="/dashboard" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-        <span className="nav-item-icon"><LayoutDashboard size={22} /></span>
+        <LayoutDashboard size={22} />
         Home
       </NavLink>
 
-      <NavLink to="/log" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-        <span className="nav-item-icon"><UtensilsCrossed size={22} /></span>
-        Log
+      <NavLink to="/plan" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+        <Dumbbell size={22} />
+        Plan
       </NavLink>
 
       <div className="nav-item nav-cam">
@@ -23,13 +23,13 @@ export default function BottomNav() {
         </button>
       </div>
 
-      <NavLink to="/workouts" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-        <span className="nav-item-icon"><Dumbbell size={22} /></span>
-        Workout
+      <NavLink to="/challenges" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+        <Trophy size={22} />
+        Compete
       </NavLink>
 
       <NavLink to="/profile" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-        <span className="nav-item-icon"><User size={22} /></span>
+        <User size={22} />
         Profile
       </NavLink>
     </nav>

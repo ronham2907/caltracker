@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Flame } from 'lucide-react';
+import Logo from '../components/Logo';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -27,10 +27,8 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="auth-logo">
-        <div className="auth-logo-icon">
-          <Flame size={22} color="white" />
-        </div>
-        <div className="auth-logo-text">Cal<span>Track</span></div>
+        <Logo size={44} />
+        <div className="auth-logo-name">FitForge</div>
       </div>
 
       <h1 className="auth-heading">Welcome back</h1>
