@@ -403,7 +403,3 @@ function LogProgressForm({ challenge, user, onLog, onCancel }) {
     </div>
   );
 }
-
-function getTypeInfo(type) {
-  return CHALLENGE_TYPES.find(t => t.value === type) || CHALLENGE_TYPES[4];
-}
