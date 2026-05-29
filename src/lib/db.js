@@ -146,4 +146,5 @@ export const db = {
   goals:        makeTable(KEYS.goals),
   reminders:    makeTable(KEYS.reminders),
   challenges:   makeTable('caltrack_challenges'),
+  weight_logs:  makeTable('caltrack_weight_logs'),
 };

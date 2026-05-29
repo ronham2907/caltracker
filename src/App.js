@@ -14,6 +14,7 @@ import Goals from './pages/Goals';
 import Reminders from './pages/Reminders';
 import Profile from './pages/Profile';
 import Challenges from './pages/Challenges';
+import WeightTracker from './pages/WeightTracker';
 import BottomNav from './components/BottomNav';
 import './App.css';
 
@@ -61,6 +62,7 @@ function AppRoutes() {
       <Route path="/reminders"   element={<ProtectedRoute><Reminders /></ProtectedRoute>} />
       <Route path="/profile"     element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/challenges"  element={<ProtectedRoute><Challenges /></ProtectedRoute>} />
+      <Route path="/weight"      element={<ProtectedRoute><WeightTracker /></ProtectedRoute>} />
     </Routes>
   );
 }

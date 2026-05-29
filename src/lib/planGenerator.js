@@ -273,11 +273,12 @@ function getMeals(dietType) {
   return MEAL_DB[dietType] || MEAL_DB.none;
 }
 
+// generateNutritionPlan returns multiple options per meal so the UI can let
+// the user swipe/pick which suggestion to log.
 export function generateNutritionPlan(profile) {
   const { diet_type = 'none', daily_calorie_goal = 2000, goal_type = 'maintain' } = profile || {};
 
   const meals = getMeals(diet_type);
-  const rotateIdx = new Date().getDay(); // Different meals each day of week
 
   const calSplit = goal_type === 'lose'
     ? { breakfast: 0.25, lunch: 0.35, dinner: 0.28, snack: 0.12 }
@@ -285,10 +286,49 @@ export function generateNutritionPlan(profile) {
     ? { breakfast: 0.28, lunch: 0.30, dinner: 0.30, snack: 0.12 }
     : { breakfast: 0.25, lunch: 0.33, dinner: 0.30, snack: 0.12 };
 
+  function buildOptions(mealArr, cals) {
+    return mealArr.map(m => ({ ...m, calories: cals }));
+  }
+
   return [
-    { type: 'breakfast', ...meals.breakfast[rotateIdx % meals.breakfast.length], calories: Math.round(daily_calorie_goal * calSplit.breakfast) },
-    { type: 'lunch',     ...meals.lunch[rotateIdx % meals.lunch.length],         calories: Math.round(daily_calorie_goal * calSplit.lunch) },
-    { type: 'dinner',    ...meals.dinner[rotateIdx % meals.dinner.length],        calories: Math.round(daily_calorie_goal * calSplit.dinner) },
-    { type: 'snack',     ...meals.snack[rotateIdx % meals.snack.length],         calories: Math.round(daily_calorie_goal * calSplit.snack) },
+    { type: 'breakfast', options: buildOptions(meals.breakfast, Math.round(daily_calorie_goal * calSplit.breakfast)) },
+    { type: 'lunch',     options: buildOptions(meals.lunch,     Math.round(daily_calorie_goal * calSplit.lunch))     },
+    { type: 'dinner',    options: buildOptions(meals.dinner,    Math.round(daily_calorie_goal * calSplit.dinner))    },
+    { type: 'snack',     options: buildOptions(meals.snack,     Math.round(daily_calorie_goal * calSplit.snack))     },
   ];
+}
+
+// ─── BMR / TDEE ──────────────────────────────────────────────────────────────
+const ACTIVITY_MULTIPLIERS = {
+  sedentary:  1.2,
+  light:      1.375,
+  moderate:   1.55,
+  active:     1.725,
+  very_active:1.9,
+};
+
+export function calculateBMR(profile) {
+  const { weight_kg, height_cm, age, gender = 'male' } = profile || {};
+  if (!weight_kg || !height_cm || !age) return null;
+
+  // Mifflin-St Jeor
+  const base = 10 * Number(weight_kg) + 6.25 * Number(height_cm) - 5 * Number(age);
+  return Math.round(gender === 'female' ? base - 161 : base + 5);
+}
+
+export function calculateTDEE(profile) {
+  const bmr = calculateBMR(profile);
+  if (!bmr) return null;
+  const mult = ACTIVITY_MULTIPLIERS[profile?.activity_level] || 1.55;
+  return Math.round(bmr * mult);
+}
+
+export function calculateCalorieTarget(profile) {
+  const tdee = calculateTDEE(profile);
+  if (!tdee) return profile?.daily_calorie_goal || 2000;
+  switch (profile?.goal_type) {
+    case 'lose':        return Math.round(tdee - 500);
+    case 'gain':        return Math.round(tdee + 300);
+    default:            return tdee;
+  }
 }

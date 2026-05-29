@@ -16,8 +16,9 @@ export default function Profile() {
   const { user, profile, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    full_name: '', age: '', weight_kg: '', height_cm: '',
+    full_name: '', age: '', weight_kg: '', height_cm: '', gender: 'male',
     goal_type: 'maintain', activity_level: 'moderate',
+    goal_weight: '',
     daily_calorie_goal: '2000', daily_protein_goal: '150',
     daily_carb_goal: '250', daily_fat_goal: '65',
   });
@@ -27,7 +28,9 @@ export default function Profile() {
   useEffect(() => {
     if (profile) {
       setForm({
-        full_name:          profile.full_name          || '',
+        full_name:          profile.full_name           || '',
+        gender:             profile.gender              || 'male',
+        goal_weight:        profile.goal_weight         || '',
         age:                profile.age                || '',
         weight_kg:          profile.weight_kg          || '',
         height_cm:          profile.height_cm          || '',
@@ -50,9 +53,11 @@ export default function Profile() {
     setSaving(true);
     const { error } = updateProfile({
       full_name:          form.full_name,
+      gender:             form.gender,
       age:                parseInt(form.age, 10)                || null,
       weight_kg:          parseFloat(form.weight_kg)            || null,
       height_cm:          parseFloat(form.height_cm)            || null,
+      goal_weight:        parseFloat(form.goal_weight)          || null,
       goal_type:          form.goal_type,
       activity_level:     form.activity_level,
       daily_calorie_goal: parseInt(form.daily_calorie_goal, 10) || 2000,
@@ -105,9 +110,30 @@ export default function Profile() {
                 <input className="input" type="number" step="0.1" placeholder="70" value={form.weight_kg} onChange={set('weight_kg')} />
               </div>
             </div>
+            <div className="input-row">
+              <div className="input-group">
+                <label className="input-label">Height (cm)</label>
+                <input className="input" type="number" step="0.1" placeholder="175" value={form.height_cm} onChange={set('height_cm')} />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Goal Weight (kg)</label>
+                <input className="input" type="number" step="0.1" placeholder="65" value={form.goal_weight} onChange={set('goal_weight')} />
+              </div>
+            </div>
             <div className="input-group">
-              <label className="input-label">Height (cm)</label>
-              <input className="input" type="number" step="0.1" placeholder="175" value={form.height_cm} onChange={set('height_cm')} />
+              <label className="input-label">Gender (for BMR)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['male', 'female'].map(g => (
+                  <button
+                    key={g} type="button"
+                    className={'goal-type-btn' + (form.gender === g ? ' active' : '')}
+                    style={{ flex: 1 }}
+                    onClick={() => setForm(f => ({ ...f, gender: g }))}
+                  >
+                    {g === 'male' ? '♂ Male' : '♀ Female'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

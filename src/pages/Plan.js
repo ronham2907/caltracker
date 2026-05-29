@@ -1,46 +1,58 @@
 import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, Zap, Utensils, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Zap, Utensils, Plus, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { generateWorkoutPlan, generateNutritionPlan } from '../lib/planGenerator';
 import { db } from '../lib/db';
 import Toast from '../components/Toast';
 
 const MEAL_ICONS = { breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍎' };
-const TODAY = format(new Date(), 'EEEE'); // e.g. "Monday"
+const TODAY = format(new Date(), 'EEEE');
 
 export default function Plan() {
-  const { profile } = useAuth();
-  const [tab, setTab] = useState('workout');
+  const { profile, user } = useAuth();
+  const [tab, setTab]           = useState('workout');
   const [expanded, setExpanded] = useState(TODAY);
-  const [toast, setToast] = useState(null);
-  const [loggedMeals, setLoggedMeals] = useState(new Set());
-  const { user } = useAuth();
+  const [toast, setToast]       = useState(null);
 
-  const workoutPlan  = useMemo(() => generateWorkoutPlan(profile),   [profile]);
+  // Per-meal: which option index is currently shown
+  const [mealIdx, setMealIdx]       = useState({ breakfast: 0, lunch: 0, dinner: 0, snack: 0 });
+  // Per-meal: has this meal been logged today
+  const [loggedMeals, setLoggedMeals] = useState(new Set());
+
+  const workoutPlan   = useMemo(() => generateWorkoutPlan(profile),   [profile]);
   const nutritionPlan = useMemo(() => generateNutritionPlan(profile), [profile]);
 
+  /* ── Workout helpers ── */
   function toggleDay(day) {
     setExpanded(e => e === day ? null : day);
   }
 
-  function logMeal(meal) {
+  /* ── Nutrition helpers ── */
+  function prev(type, len) {
+    setMealIdx(idx => ({ ...idx, [type]: (idx[type] - 1 + len) % len }));
+  }
+  function next(type, len) {
+    setMealIdx(idx => ({ ...idx, [type]: (idx[type] + 1) % len }));
+  }
+
+  function logMeal(mealType, option) {
     if (!user) return;
     db.food_logs.insert({
       user_id:   user.id,
       logged_at: format(new Date(), 'yyyy-MM-dd'),
-      meal_type: meal.type,
-      food_name: meal.name,
-      calories:  meal.calories,
-      protein_g: Math.round(meal.calories * 0.25 / 4),
-      carbs_g:   Math.round(meal.calories * 0.45 / 4),
-      fat_g:     Math.round(meal.calories * 0.30 / 9),
+      meal_type: mealType,
+      food_name: option.name,
+      calories:  option.calories,
+      protein_g: Math.round(option.calories * 0.25 / 4),
+      carbs_g:   Math.round(option.calories * 0.45 / 4),
+      fat_g:     Math.round(option.calories * 0.30 / 9),
       quantity:  1,
       unit:      'serving',
       notes:     'From nutrition plan',
     });
-    setLoggedMeals(s => new Set([...s, meal.type]));
-    setToast({ msg: `${meal.name} logged!`, type: 'success' });
+    setLoggedMeals(s => new Set([...s, mealType]));
+    setToast({ msg: `${option.name} logged! ✅`, type: 'success' });
   }
 
   const goalLabel = {
@@ -59,9 +71,9 @@ export default function Plan() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div className="plan-tab-row">
-        <button className={`plan-tab${tab === 'workout' ? ' active' : ''}`} onClick={() => setTab('workout')}>
+        <button className={`plan-tab${tab === 'workout'   ? ' active' : ''}`} onClick={() => setTab('workout')}>
           <Zap size={14} style={{ display: 'inline', marginRight: 5 }} />Workout
         </button>
         <button className={`plan-tab${tab === 'nutrition' ? ' active' : ''}`} onClick={() => setTab('nutrition')}>
@@ -69,25 +81,25 @@ export default function Plan() {
         </button>
       </div>
 
-      {/* ── Workout Plan ── */}
+      {/* ════════════════ WORKOUT ════════════════ */}
       {tab === 'workout' && (
         <>
+          {/* Stats strip */}
           <div style={{ padding: '0 20px', marginBottom: 16 }}>
-            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 16px', display: 'flex', gap: 20 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fire)' }}>{profile?.training_days || 3}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>DAYS / WEEK</div>
-              </div>
-              <div style={{ width: 1, background: 'var(--border)' }} />
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--elec)', textTransform: 'capitalize' }}>{profile?.fitness_level || 'Beginner'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>LEVEL</div>
-              </div>
-              <div style={{ width: 1, background: 'var(--border)' }} />
-              <div style={{ textAlign: 'center', flex: 1 }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--neon)', textTransform: 'capitalize' }}>{profile?.workout_location || 'Home'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>LOCATION</div>
-              </div>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 16px', display: 'flex', gap: 16 }}>
+              {[
+                { label: 'Days/Week', value: profile?.training_days || 3,                   color: 'var(--fire)' },
+                { label: 'Level',     value: profile?.fitness_level  || 'Beginner',          color: 'var(--elec)' },
+                { label: 'Location',  value: profile?.workout_location || 'Home',            color: 'var(--neon)' },
+              ].map((item, i) => (
+                <React.Fragment key={item.label}>
+                  {i > 0 && <div style={{ width: 1, background: 'var(--border)' }} />}
+                  <div style={{ textAlign: 'center', flex: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: item.color, textTransform: 'capitalize' }}>{item.value}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-2)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</div>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
           </div>
 
@@ -96,7 +108,7 @@ export default function Plan() {
               <div className="day-card-header" onClick={() => !day.rest && toggleDay(day.day)}>
                 <div style={{ flex: 1 }}>
                   <div className={`day-name${day.day === TODAY ? ' today' : ''}`}>
-                    {day.day} {day.day === TODAY && '• Today'}
+                    {day.day}{day.day === TODAY ? ' · Today' : ''}
                   </div>
                   {day.rest
                     ? <div className="day-rest">Rest Day 😴</div>
@@ -138,54 +150,128 @@ export default function Plan() {
         </>
       )}
 
-      {/* ── Nutrition Plan ── */}
+      {/* ════════════════ NUTRITION ════════════════ */}
       {tab === 'nutrition' && (
         <>
+          {/* Calorie goal strip */}
           <div style={{ padding: '0 20px', marginBottom: 16 }}>
-            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'center' }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16 }}>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--fire)' }}>
                   {profile?.daily_calorie_goal || 2000}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>DAILY GOAL (kcal)</div>
+                <div style={{ fontSize: 10, color: 'var(--text-2)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>kcal goal</div>
               </div>
               <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
-              <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-                Plan based on your <strong style={{ color: 'var(--text)' }}>{profile?.diet_type?.replace('_',' ') || 'standard'}</strong> diet preference.
-                Meals rotate daily.
+              <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, flex: 1 }}>
+                Swipe options for each meal and tap <strong style={{ color: 'var(--text)' }}>Log</strong> to add to your diary.
+                Based on your <strong style={{ color: 'var(--text)' }}>{profile?.diet_type?.replace('_', ' ') || 'standard'}</strong> preference.
               </div>
             </div>
           </div>
 
-          {nutritionPlan.map(meal => (
-            <div key={meal.type} className="meal-suggestion-card">
-              <div style={{ fontSize: 28, flexShrink: 0 }}>{MEAL_ICONS[meal.type]}</div>
-              <div className="meal-suggestion-left">
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--text-2)', marginBottom: 3 }}>
-                  {meal.type}
+          {nutritionPlan.map(({ type, options }) => {
+            const idx     = mealIdx[type] || 0;
+            const current = options[idx];
+            const isLogged = loggedMeals.has(type);
+
+            return (
+              <div key={type} style={{ margin: '0 20px 12px' }}>
+                {/* Meal header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 16 }}>{MEAL_ICONS[type]}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.8px', color: isLogged ? 'var(--neon)' : 'var(--text-2)' }}>
+                      {type}
+                    </span>
+                    {isLogged && <span style={{ fontSize: 11, color: 'var(--neon)', fontWeight: 700 }}>✓ Logged</span>}
+                  </div>
+                  {/* Option dots */}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {options.map((_, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          width: i === idx ? 14 : 6,
+                          height: 6,
+                          borderRadius: 3,
+                          background: i === idx ? 'var(--fire)' : 'var(--border-hi)',
+                          transition: 'all 0.2s',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => setMealIdx(m => ({ ...m, [type]: i }))}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="meal-suggestion-title">{meal.name}</div>
-                <div className="meal-suggestion-sub">{meal.sub}</div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                <div className="meal-suggestion-cals">{meal.calories}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>kcal</div>
-                <button
-                  className="btn btn-primary"
-                  style={{ padding: '7px 12px', fontSize: 12 }}
-                  disabled={loggedMeals.has(meal.type)}
-                  onClick={() => logMeal(meal)}
-                >
-                  {loggedMeals.has(meal.type) ? '✓' : <><Plus size={12} /> Log</>}
-                </button>
-              </div>
-            </div>
-          ))}
 
-          <div style={{ margin: '0 20px', padding: '14px 16px', background: 'var(--elec-dim)', border: '1px solid rgba(0,207,255,0.15)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-            💡 <strong style={{ color: 'var(--text)' }}>Tip:</strong> These are suggestions based on your profile. Tap Log to add them to your food diary.
+                {/* Card */}
+                <div style={{
+                  background: isLogged
+                    ? 'linear-gradient(135deg, rgba(57,255,132,0.06), rgba(57,255,132,0.02))'
+                    : 'var(--card)',
+                  border: `1px solid ${isLogged ? 'rgba(57,255,132,0.2)' : 'var(--border)'}`,
+                  borderRadius: 'var(--r-lg)',
+                  padding: '16px 18px',
+                  transition: 'all 0.2s',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                    {/* Left arrow */}
+                    <button
+                      className="btn-icon"
+                      style={{ flexShrink: 0, padding: 8, marginTop: 2 }}
+                      onClick={() => prev(type, options.length)}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    {/* Meal info */}
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.2px' }}>
+                        {current.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.5 }}>
+                        {current.sub}
+                      </div>
+                      <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, background: 'var(--fire-dim)', borderRadius: 20, padding: '4px 14px', border: '1px solid rgba(255,92,0,0.2)' }}>
+                        <span style={{ fontSize: 20, fontWeight: 900, color: 'var(--fire)' }}>{current.calories}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>kcal</span>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-2)' }}>
+                        Option {idx + 1} of {options.length}
+                      </div>
+                    </div>
+
+                    {/* Right arrow */}
+                    <button
+                      className="btn-icon"
+                      style={{ flexShrink: 0, padding: 8, marginTop: 2 }}
+                      onClick={() => next(type, options.length)}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  {/* Log button */}
+                  <button
+                    className={`btn btn-full ${isLogged ? 'btn-ghost' : 'btn-primary'}`}
+                    style={{ marginTop: 14, fontSize: 14 }}
+                    onClick={() => !isLogged && logMeal(type, current)}
+                  >
+                    {isLogged
+                      ? <><Check size={15} /> Logged</>
+                      : <><Plus size={15} /> Log This Meal</>
+                    }
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ margin: '8px 20px 0', padding: '12px 16px', background: 'var(--elec-dim)', border: '1px solid rgba(0,207,255,0.12)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+            💡 Tap the arrows to browse meal alternatives. Tap Log to add it to today's food diary.
           </div>
-          <div style={{ height: 20 }} />
+          <div style={{ height: 24 }} />
         </>
       )}
     </div>
