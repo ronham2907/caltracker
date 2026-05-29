@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"c:\\\\Users\\\\ronh2\\\\caltracker\"; $env:BROWSER=\"none\"; npm start 2>&1 | Select-Object -First 30)"
+    ]
+  }
+}
